@@ -1,5 +1,5 @@
 """
-DataInsight Pro - Secure Main Application
+DataInsight Pro - Secure Data Analysis
 Copyright 2026 ApexDynamics Solutions | Built by Rotimi Ugbana
 """
 import streamlit as st
@@ -16,12 +16,14 @@ from analyzer import DataAnalyzer
 from visualizer import Visualizer
 from report_builder import ReportBuilder
 from monetize import MonetizationEngine
+from license_gen import LicenseManager
 import base64
+from datetime import datetime
 
 COMPANY = "ApexDynamics Solutions"
 DEVELOPER = "Rotimi Ugbana"
 YEAR = "2026"
-VERSION = "v1.0"
+VERSION = "v2.0"
 
 st.markdown("""
 <style>
@@ -32,21 +34,25 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
         font-weight: bold;
     }
-    .license-box {
-        background: #f0f8ff;
-        border: 2px solid #667eea;
+    .preview-banner {
+        background: #fff3cd;
+        border: 2px solid #ffc107;
+        padding: 15px;
         border-radius: 10px;
-        padding: 20px;
-        margin: 20px 0;
+        text-align: center;
+        margin: 15px 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
 @st.cache_resource
 def init_components():
-    return DataAnalyzer(), Visualizer(), ReportBuilder(), MonetizationEngine()
+    return DataAnalyzer(), Visualizer(), ReportBuilder(), MonetizationEngine(), LicenseManager()
 
-analyzer, visualizer, report_builder, monetizer = init_components()
+analyzer, visualizer, report_builder, monetizer, license_mgr = init_components()
+
+if 'licensed' not in st.session_state:
+    st.session_state.licensed = False
 
 # Sidebar
 with st.sidebar:
@@ -54,68 +60,43 @@ with st.sidebar:
     st.markdown("### 💰 Pricing Plans")
     
     for tier, details in monetizer.price_tiers.items():
-        with st.expander(f"{details['name']} - ${details['price']:.2f}"):
+        with st.expander(f"**{details['name']}** - ${details['price']:.2f}"):
             for feature in details['features']:
                 st.write(f"✓ {feature}")
     
     st.markdown("---")
-    st.markdown("### 📈 Profit Calculator")
-    calc_tier = st.selectbox("Tier", list(monetizer.price_tiers.keys()))
-    calc_clients = st.slider("Monthly Clients", 1, 50, 10)
-    profit = monetizer.calculate_profit(calc_tier, calc_clients)
-    st.metric("Monthly Net", f"${profit['net_revenue']:,.2f}")
-    st.metric("Annual", f"${profit['projected_annual']:,.2f}")
+    st.markdown("### 🔑 License Activation")
+    
+    lic_key = st.text_input("License Key", placeholder="DAT-XXXX-XXXX-XXXX")
+    lic_email = st.text_input("Email", placeholder="you@email.com")
+    
+    if st.button("Activate License", type="primary"):
+        valid, msg = license_mgr.validate(lic_key, lic_email)
+        if valid:
+            st.success(f"✅ {msg} - Full Access Unlocked!")
+            st.session_state.licensed = True
+            st.session_state.buyer_email = lic_email
+        else:
+            st.error(f"❌ {msg}")
+    
+    if st.session_state.licensed:
+        st.success("🔓 Licensed - Full Access")
+    else:
+        st.info("🔒 Preview Mode - Activate for full features")
 
 # Main Content
 st.markdown(f'<h1 class="main-header">📊 DataInsight Pro</h1>', unsafe_allow_html=True)
-st.markdown(f"### Professional Data Analysis | {COMPANY}")
+st.markdown(f"### Turn Raw Data into Actionable Insights | {COMPANY}")
 
-# ============ ORDER INFORMATION SECTION ============
-st.markdown("---")
-st.markdown("## 🔐 Report Licensing & Security")
-
-col1, col2, col3 = st.columns([2, 2, 1])
-
-with col1:
-    buyer_email = st.text_input(
-        "📧 Your Email Address",
-        placeholder="client@example.com",
-        help="Will be embedded as watermark in your report"
-    )
-
-with col2:
-    purchase_id = st.text_input(
-        "🧾 Order / Invoice Number",
-        placeholder="INV-2026-001",
-        help="Your order reference for tracking"
-    )
-
-with col3:
-    if buyer_email and purchase_id:
-        st.markdown("""
-        <div style="background:#d4edda; padding:20px; border-radius:10px; text-align:center; margin-top:10px;">
-            <h2 style="color:#155724; margin:0;">✅<br>LICENSED</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div style="background:#fff3cd; padding:20px; border-radius:10px; text-align:center; margin-top:10px;">
-            <h3 style="color:#856404; margin:0;">⚠️<br>PREVIEW MODE</h3>
-        </div>
-        """, unsafe_allow_html=True)
-
-if buyer_email and purchase_id:
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); 
-         color: white; padding: 15px; border-radius: 10px; margin: 10px 0;">
-        <strong>🔒 SECURE LICENSED REPORT</strong><br>
-        Licensed to: {buyer_email} | Order: {purchase_id}<br>
-        <small>✓ Watermarked | ✓ Tracked | ✓ Confidential</small>
+# Preview Banner
+if not st.session_state.licensed:
+    st.markdown("""
+    <div class="preview-banner">
+        <h3>🔒 PREVIEW MODE</h3>
+        <p>You're viewing limited results. <strong>Activate your license</strong> to unlock full analysis, 
+        all charts, and downloadable reports.</p>
     </div>
     """, unsafe_allow_html=True)
-
-st.markdown("---")
-# ============ END ORDER SECTION ============
 
 # File upload
 uploaded_file = st.file_uploader(
@@ -129,10 +110,7 @@ if uploaded_file is not None:
             results, df = analyzer.full_analysis(uploaded_file)
             charts = visualizer.insight_dashboard(df, results)
             
-            if buyer_email:
-                st.success(f"✅ Analysis complete! Licensed to: {buyer_email}")
-            else:
-                st.success(f"✅ Analysis complete! (Preview Mode)")
+            st.success(f"✅ Analysis complete! Quality Score: {results['quality_score']}/100")
             
             col1, col2, col3, col4 = st.columns(4)
             with col1:
@@ -148,91 +126,59 @@ if uploaded_file is not None:
             tab1, tab2, tab3, tab4 = st.tabs(["📋 Overview", "📊 Charts", "💡 Insights", "📥 Export"])
             
             with tab1:
-                st.markdown("### Data Profile")
                 for col, dtype in results['profile']['dtypes'].items():
                     st.text(f"{col}: {dtype}")
+                if results['profile']['duplicates'] > 0:
+                    st.warning(f"Found {results['profile']['duplicates']} duplicate rows")
             
             with tab2:
-                if charts.get('missing'):
-                    st.image(f"data:image/png;base64,{charts['missing']}", use_column_width=True)
-                if charts.get('distribution'):
-                    st.image(f"data:image/png;base64,{charts['distribution']}", use_column_width=True)
-                if charts.get('correlation'):
-                    st.components.v1.html(charts['correlation'], height=500)
-                if charts.get('categories'):
-                    st.image(f"data:image/png;base64,{charts['categories']}", use_column_width=True)
+                if st.session_state.licensed:
+                    if charts.get('missing'):
+                        st.image(f"data:image/png;base64,{charts['missing']}", use_column_width=True)
+                    if charts.get('distribution'):
+                        st.image(f"data:image/png;base64,{charts['distribution']}", use_column_width=True)
+                    if charts.get('correlation'):
+                        st.components.v1.html(charts['correlation'], height=500)
+                    if charts.get('categories'):
+                        st.image(f"data:image/png;base64,{charts['categories']}", use_column_width=True)
+                else:
+                    if charts.get('missing'):
+                        st.image(f"data:image/png;base64,{charts['missing']}", use_column_width=True)
+                    st.warning("🔒 Activate license to see all charts and visualizations")
             
             with tab3:
                 if results.get('insights'):
-                    for insight in results['insights']:
+                    for insight in results['insights'][:3 if not st.session_state.licensed else len(results['insights'])]:
                         if insight['type'] == 'warning':
                             st.warning(insight['message'])
                         elif insight['type'] == 'alert':
                             st.error(insight['message'])
                         else:
                             st.info(insight['message'])
+                    if not st.session_state.licensed:
+                        st.warning("🔒 Activate license to see all insights")
             
             with tab4:
                 st.markdown("### 📥 Export Reports")
                 
-                email = buyer_email if buyer_email else "PREVIEW"
-                order_id = purchase_id if purchase_id else "DEMO"
-                
-                # Security info box
-                st.markdown(f"""
-                <div style="background:#fff3cd; border-left:5px solid #ffc107; padding:15px; margin:15px 0; border-radius:5px;">
-                    <h4>🔐 Report Security</h4>
-                    <table style="width:100%;">
-                        <tr><td>📧 Licensed To:</td><td><strong>{email}</strong></td></tr>
-                        <tr><td>🧾 Order:</td><td><strong>{order_id}</strong></td></tr>
-                        <tr><td>💧 Watermark:</td><td><strong>Embedded</strong></td></tr>
-                        <tr><td>🔒 Status:</td><td><strong style="color:{'green' if buyer_email else 'orange'};">{'LICENSED' if buyer_email else 'PREVIEW'}</strong></td></tr>
-                    </table>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.dataframe(df.head(5))
-                    csv = df.to_csv(index=False)
-                    st.download_button("📥 Download CSV", csv, "data.csv", "text/csv")
-                
-                with col2:
-                    if st.button("🔓 Generate Full Report", type="primary"):
-                        st.session_state.show_report = True
-                    
-                    if st.session_state.get('show_report'):
-                        html_report = report_builder.generate_html_report(
-                            results, charts, df, buyer_email=email, purchase_id=order_id
-                        )
-                        st.components.v1.html(html_report, height=600, scrolling=True)
-                        
-                        st.download_button(
-                            "📥 Download HTML (Watermarked)",
-                            html_report,
-                            f"report_{order_id}.html",
-                            "text/html"
-                        )
-                        
-                        pdf_report = report_builder.generate_pdf_report(
-                            results, df, buyer_email=email, purchase_id=order_id
-                        )
-                        st.download_button(
-                            "📥 Download PDF (Watermarked)",
-                            base64.b64decode(pdf_report),
-                            f"report_{order_id}.pdf",
-                            "application/pdf"
-                        )
-                        
-                        st.markdown("""
-                        ---
-                        ### 🔒 Security Applied:
-                        ✅ Watermarked with your email  
-                        ✅ Unique Report ID  
-                        ✅ Confidentiality notice  
-                        ✅ Order number embedded  
-                        """)
+                if st.session_state.licensed:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.dataframe(df.head(5))
+                        csv = df.to_csv(index=False)
+                        st.download_button("📥 Download CSV", csv, "data.csv", "text/csv")
+                    with col2:
+                        if st.button("🔓 Generate Full Report", type="primary"):
+                            st.session_state.show_report = True
+                        if st.session_state.get('show_report'):
+                            html_report = report_builder.generate_html_report(results, charts, df)
+                            st.components.v1.html(html_report, height=600, scrolling=True)
+                            st.download_button("📥 Download HTML Report", html_report, "report.html", "text/html")
+                            pdf_report = report_builder.generate_pdf_report(results, df)
+                            st.download_button("📥 Download PDF Report", base64.b64decode(pdf_report), "report.pdf", "application/pdf")
+                else:
+                    st.warning("🔒 Activate license to download reports")
+                    st.dataframe(df.head(3))
         
         except Exception as e:
             st.error(f"Error: {str(e)}")
@@ -240,11 +186,11 @@ if uploaded_file is not None:
 else:
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown("### 🚀 How It Works\n1. Enter order details\n2. Upload data\n3. Get analysis\n4. Download secure report")
+        st.markdown("### 🚀 How It Works\n1. Activate license\n2. Upload data\n3. Get insights\n4. Download reports")
     with col2:
-        st.markdown("### 📊 Features\n- Statistics\n- Charts\n- Insights\n- Watermarked reports")
+        st.markdown("### 📊 Features\n- Statistics\n- Charts\n- Insights\n- PDF Reports")
     with col3:
-        st.markdown("### 💡 Use Cases\n- Sales data\n- Customer analytics\n- Financial reports\n- Market research")
+        st.markdown("### 💡 Use Cases\n- Sales data\n- Analytics\n- Financial reports\n- Research")
     
     if st.button("📁 Load Demo Data"):
         dates = pd.date_range('2023-01-01', periods=100, freq='D')
